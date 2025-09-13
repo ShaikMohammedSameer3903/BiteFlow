@@ -1,0 +1,158 @@
+version: '3.8'
+
+services:
+  # Database Services
+  mysql:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: shaik
+      MYSQL_DATABASE: food_delivery
+      MYSQL_USER: root
+      MYSQL_PASSWORD: shaik
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    command: --default-authentication-plugin=mysql_native_password
+    networks:
+      - food-delivery-network
+
+  redis:
+    image: redis:6-alpine
+    ports:
+      - "6379:6379"
+    networks:
+      - food-delivery-network
+
+  # Backend Services
+  user-service:
+    build: ./backend/user-service
+    ports:
+      - "8081:8081"
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/food_delivery
+      - SPRING_DATASOURCE_USERNAME=root
+      - SPRING_DATASOURCE_PASSWORD=shaik
+      - JWT_SECRET=MySecretJWTKey123456789012345678901234567890ShaikFoodDelivery2024
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    depends_on:
+      - mysql
+      - redis
+    networks:
+      - food-delivery-network
+
+  restaurant-service:
+    build: ./backend/restaurant-service
+    ports:
+      - "8082:8082"
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/food_delivery
+      - SPRING_DATASOURCE_USERNAME=root
+      - SPRING_DATASOURCE_PASSWORD=shaik
+      - JWT_SECRET=MySecretJWTKey123456789012345678901234567890ShaikFoodDelivery2024
+      - USER_SERVICE_URL=http://user-service:8081
+    depends_on:
+      - mysql
+      - user-service
+    networks:
+      - food-delivery-network
+
+  delivery-service:
+    build: ./backend/delivery-service
+    ports:
+      - "8083:8083"
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/food_delivery
+      - SPRING_DATASOURCE_USERNAME=root
+      - SPRING_DATASOURCE_PASSWORD=shaik
+      - JWT_SECRET=MySecretJWTKey123456789012345678901234567890ShaikFoodDelivery2024
+      - USER_SERVICE_URL=http://user-service:8081
+      - RESTAURANT_SERVICE_URL=http://restaurant-service:8082
+    depends_on:
+      - mysql
+      - user-service
+      - restaurant-service
+    networks:
+      - food-delivery-network
+
+  payment-service:
+    build: ./backend/payment-service
+    ports:
+      - "8084:8084"
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/food_delivery
+      - SPRING_DATASOURCE_USERNAME=root
+      - SPRING_DATASOURCE_PASSWORD=shaik
+      - JWT_SECRET=MySecretJWTKey123456789012345678901234567890ShaikFoodDelivery2024
+      - STRIPE_SECRET_KEY=sk_test_51234567890abcdefghijklmnopqrstuvwxyz1234567890abcdefghijklmnopqrstuvwxyz
+      - USER_SERVICE_URL=http://user-service:8081
+    depends_on:
+      - mysql
+      - user-service
+    networks:
+      - food-delivery-network
+
+  api-gateway:
+    build: ./backend/api-gateway
+    ports:
+      - "8888:8888"
+    environment:
+      - JWT_SECRET=MySecretJWTKey123456789012345678901234567890ShaikFoodDelivery2024
+      - USER_SERVICE_URL=http://user-service:8081
+      - RESTAURANT_SERVICE_URL=http://restaurant-service:8082
+      - DELIVERY_SERVICE_URL=http://delivery-service:8083
+      - PAYMENT_SERVICE_URL=http://payment-service:8084
+      - AI_SERVICE_URL=http://ai-service:8085
+    depends_on:
+      - user-service
+      - restaurant-service
+      - delivery-service
+      - payment-service
+      - ai-service
+    networks:
+      - food-delivery-network
+
+  ai-service:
+    build: ./ai-service
+    ports:
+      - "8085:8085"
+    environment:
+      - DATABASE_URL=mysql://root:shaik@mysql:3306/food_delivery_ai
+      - REDIS_URL=redis://redis:6379/0
+      - JWT_SECRET_KEY=MySecretJWTKey123456789012345678901234567890ShaikFoodDelivery2024
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - GOOGLE_MAPS_API_KEY=${GOOGLE_MAPS_API_KEY}
+      - USER_SERVICE_URL=http://user-service:8081
+      - RESTAURANT_SERVICE_URL=http://restaurant-service:8082
+      - DELIVERY_SERVICE_URL=http://delivery-service:8083
+      - PAYMENT_SERVICE_URL=http://payment-service:8084
+      - API_GATEWAY_URL=http://api-gateway:8888
+    depends_on:
+      - mysql
+      - redis
+      - user-service
+      - restaurant-service
+    networks:
+      - food-delivery-network
+
+  # Frontend
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - REACT_APP_API_URL=http://localhost:8888
+      - REACT_APP_STRIPE_PUBLISHABLE_KEY=${STRIPE_PUBLISHABLE_KEY}
+      - REACT_APP_GOOGLE_MAPS_API_KEY=${GOOGLE_MAPS_API_KEY}
+    depends_on:
+      - api-gateway
+    networks:
+      - food-delivery-network
+
+volumes:
+  mysql_data:
+
+networks:
+  food-delivery-network:
+    driver: bridge

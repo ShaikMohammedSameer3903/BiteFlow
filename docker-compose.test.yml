@@ -1,0 +1,223 @@
+version: '3.8'
+
+services:
+  # Test Database Services
+  mysql:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: shaik
+      MYSQL_DATABASE: food_delivery_test
+      MYSQL_USER: root
+      MYSQL_PASSWORD: shaik
+    ports:
+      - "3307:3306"
+    volumes:
+      - mysql_test_data:/var/lib/mysql
+    command: --default-authentication-plugin=mysql_native_password
+    networks:
+      - test-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 20s
+      retries: 10
+
+  redis:
+    image: redis:6-alpine
+    ports:
+      - "6380:6379"
+    networks:
+      - test-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Backend Services for Testing
+  user-service:
+    build: ./backend/user-service
+    ports:
+      - "8091:8081"
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/food_delivery_test
+      - SPRING_DATASOURCE_USERNAME=root
+      - SPRING_DATASOURCE_PASSWORD=shaik
+      - JWT_SECRET=MySecretJWTKey123456789012345678901234567890ShaikFoodDelivery2024
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - SPRING_PROFILES_ACTIVE=test
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - test-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  restaurant-service:
+    build: ./backend/restaurant-service
+    ports:
+      - "8092:8082"
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/food_delivery_test
+      - SPRING_DATASOURCE_USERNAME=root
+      - SPRING_DATASOURCE_PASSWORD=shaik
+      - JWT_SECRET=MySecretJWTKey123456789012345678901234567890ShaikFoodDelivery2024
+      - USER_SERVICE_URL=http://user-service:8081
+      - SPRING_PROFILES_ACTIVE=test
+    depends_on:
+      mysql:
+        condition: service_healthy
+      user-service:
+        condition: service_healthy
+    networks:
+      - test-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8082/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  delivery-service:
+    build: ./backend/delivery-service
+    ports:
+      - "8093:8083"
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/food_delivery_test
+      - SPRING_DATASOURCE_USERNAME=root
+      - SPRING_DATASOURCE_PASSWORD=shaik
+      - JWT_SECRET=MySecretJWTKey123456789012345678901234567890ShaikFoodDelivery2024
+      - USER_SERVICE_URL=http://user-service:8081
+      - RESTAURANT_SERVICE_URL=http://restaurant-service:8082
+      - SPRING_PROFILES_ACTIVE=test
+    depends_on:
+      mysql:
+        condition: service_healthy
+      user-service:
+        condition: service_healthy
+      restaurant-service:
+        condition: service_healthy
+    networks:
+      - test-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8083/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  payment-service:
+    build: ./backend/payment-service
+    ports:
+      - "8094:8084"
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/food_delivery_test
+      - SPRING_DATASOURCE_USERNAME=root
+      - SPRING_DATASOURCE_PASSWORD=shaik
+      - JWT_SECRET=MySecretJWTKey123456789012345678901234567890ShaikFoodDelivery2024
+      - STRIPE_SECRET_KEY=sk_test_dummy_key_for_testing
+      - USER_SERVICE_URL=http://user-service:8081
+      - SPRING_PROFILES_ACTIVE=test
+    depends_on:
+      mysql:
+        condition: service_healthy
+      user-service:
+        condition: service_healthy
+    networks:
+      - test-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8084/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  api-gateway:
+    build: ./backend/api-gateway
+    ports:
+      - "8898:8888"
+    environment:
+      - JWT_SECRET=MySecretJWTKey123456789012345678901234567890ShaikFoodDelivery2024
+      - USER_SERVICE_URL=http://user-service:8081
+      - RESTAURANT_SERVICE_URL=http://restaurant-service:8082
+      - DELIVERY_SERVICE_URL=http://delivery-service:8083
+      - PAYMENT_SERVICE_URL=http://payment-service:8084
+      - AI_SERVICE_URL=http://ai-service:8085
+      - SPRING_PROFILES_ACTIVE=test
+    depends_on:
+      user-service:
+        condition: service_healthy
+      restaurant-service:
+        condition: service_healthy
+      delivery-service:
+        condition: service_healthy
+      payment-service:
+        condition: service_healthy
+      ai-service:
+        condition: service_healthy
+    networks:
+      - test-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8888/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  ai-service:
+    build: ./ai-service
+    ports:
+      - "8095:8085"
+    environment:
+      - DATABASE_URL=mysql://root:shaik@mysql:3306/food_delivery_test
+      - REDIS_URL=redis://redis:6379/0
+      - JWT_SECRET_KEY=MySecretJWTKey123456789012345678901234567890ShaikFoodDelivery2024
+      - OPENAI_API_KEY=sk-dummy-key-for-testing
+      - GOOGLE_MAPS_API_KEY=AIzaSy_dummy_key_for_testing
+      - USER_SERVICE_URL=http://user-service:8081
+      - RESTAURANT_SERVICE_URL=http://restaurant-service:8082
+      - DELIVERY_SERVICE_URL=http://delivery-service:8083
+      - PAYMENT_SERVICE_URL=http://payment-service:8084
+      - API_GATEWAY_URL=http://api-gateway:8888
+      - ENVIRONMENT=test
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      user-service:
+        condition: service_healthy
+      restaurant-service:
+        condition: service_healthy
+    networks:
+      - test-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8085/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Frontend for Testing
+  frontend:
+    build: ./frontend
+    ports:
+      - "3001:3000"
+    environment:
+      - REACT_APP_API_URL=http://localhost:8898
+      - REACT_APP_STRIPE_PUBLISHABLE_KEY=pk_test_dummy_key_for_testing
+      - REACT_APP_GOOGLE_MAPS_API_KEY=AIzaSy_dummy_key_for_testing
+      - NODE_ENV=test
+    depends_on:
+      api-gateway:
+        condition: service_healthy
+    networks:
+      - test-network
+
+volumes:
+  mysql_test_data:
+
+networks:
+  test-network:
+    driver: bridge

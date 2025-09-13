@@ -1,0 +1,117 @@
+server:
+  port: 8888
+
+spring:
+  application:
+    name: api-gateway
+  
+  cloud:
+    gateway:
+      routes:
+        # User Service Routes
+        - id: user-service-auth
+          uri: http://localhost:8081
+          predicates:
+            - Path=/api/auth/**
+          filters:
+            - StripPrefix=0
+        
+        - id: user-service-users
+          uri: http://localhost:8081
+          predicates:
+            - Path=/api/users/**
+          filters:
+            - StripPrefix=0
+            - name: JwtAuthenticationFilter
+        
+        - id: user-service-admin
+          uri: http://localhost:8081
+          predicates:
+            - Path=/api/admin/**
+          filters:
+            - StripPrefix=0
+            - name: JwtAuthenticationFilter
+        
+        # Restaurant Service Routes
+        - id: restaurant-service
+          uri: http://localhost:8082
+          predicates:
+            - Path=/api/restaurants/**
+          filters:
+            - StripPrefix=0
+            - name: JwtAuthenticationFilter
+        
+        - id: menu-service
+          uri: http://localhost:8082
+          predicates:
+            - Path=/api/menu/**
+          filters:
+            - StripPrefix=0
+            - name: JwtAuthenticationFilter
+        
+        - id: order-service
+          uri: http://localhost:8082
+          predicates:
+            - Path=/api/orders/**
+          filters:
+            - StripPrefix=0
+            - name: JwtAuthenticationFilter
+        
+        # Delivery Service Routes
+        - id: delivery-service
+          uri: http://localhost:8083
+          predicates:
+            - Path=/api/deliveries/**
+          filters:
+            - StripPrefix=0
+            - name: JwtAuthenticationFilter
+        
+        # Payment Service Routes
+        - id: payment-service
+          uri: http://localhost:8084
+          predicates:
+            - Path=/api/payments/**
+          filters:
+            - StripPrefix=0
+            - name: JwtAuthenticationFilter
+        
+        # AI Service Routes
+        - id: ai-service
+          uri: http://localhost:8085
+          predicates:
+            - Path=/api/ai/**
+          filters:
+            - StripPrefix=0
+            - name: JwtAuthenticationFilter
+      
+      globalcors:
+        corsConfigurations:
+          '[/**]':
+            allowedOriginPatterns: "*"
+            allowedMethods:
+              - GET
+              - POST
+              - PUT
+              - DELETE
+              - OPTIONS
+            allowedHeaders: "*"
+            allowCredentials: true
+
+jwt:
+  secret: ${JWT_SECRET:mySecretKey123456789012345678901234567890}
+
+logging:
+  level:
+    com.fooddelivery.apigateway: DEBUG
+    org.springframework.cloud.gateway: DEBUG
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,gateway
+  endpoint:
+    health:
+      show-details: always
